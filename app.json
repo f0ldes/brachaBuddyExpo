@@ -10,10 +10,15 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#EEDBA8"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.s3ncha.BrachaBuddyV2",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "BrachaBuddy needs access to your camera to photograph food items. For example, you can take a photo of an apple or a piece of bread, and the app will identify the correct Jewish blessing (bracha) to recite before eating."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,6 +30,14 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6eb9c4be-515e-4a60-88db-a92d8967cd12"
+      }
     }
   }
 }
