@@ -1,5 +1,5 @@
 import {
-  ScrollView,
+  // ScrollView,
   StyleSheet,
   View,
   Text,
@@ -13,15 +13,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 // import Logo from '../assets/images/bracha.svg';
 // import CameraVinyl from '../assets/images/fi-br-record-vinyl.svg';
 // import Spinner from '../assets/images/spinner.svg';
-import {HistoryItem} from '../components/HistoryItem';
+// import {HistoryItem} from '../components/HistoryItem';
 import {
   useEffect,
   useRef,
   useState,
 } from 'react';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { Pulse } from 'react-native-animated-spinkit';
-import transformLogsIntoHistoryItems from '../utils/transformLogHistoryItems';
+// import { Pulse } from 'react-native-animated-spinkit';
+// import transformLogsIntoHistoryItems from '../utils/transformLogHistoryItems';
 
 if (__DEV__) {
   const originalFetch = global.fetch;
@@ -115,14 +115,14 @@ export interface LogEntry {
 }
 
 export default function HomeScreen() {
-  const [historyItems, setHistoryItems] = useState([
-    {
-      id: '1',
-      text: 'text',
-      img: require('../assets/images/bracha.svg'),
-      description: 'bracha'
-    },
-  ]);
+  // const [historyItems, setHistoryItems] = useState([
+  //   {
+  //     id: '1',
+  //     text: 'text',
+  //     img: require('../assets/images/bracha.svg'),
+  //     description: 'bracha'
+  //   },
+  // ]);
 
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -136,7 +136,7 @@ export default function HomeScreen() {
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  // const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -163,9 +163,9 @@ export default function HomeScreen() {
     }
   }, [permission?.granted]);
 
-  useEffect(() => {
-    fetchHistoryItems();
-  }, []);
+  // useEffect(() => {
+  //   fetchHistoryItems();
+  // }, []);
 
   const cameraRef = useRef<CameraView>(null);
 
@@ -218,7 +218,7 @@ export default function HomeScreen() {
             const res = await response.json();
             console.log('📥 API response data:', JSON.stringify(res, null, 2));
             setApiMessage(res);
-            fetchHistoryItems();
+            // fetchHistoryItems();
           } else {
             const errorText = await response.text();
             console.error(
@@ -255,35 +255,35 @@ export default function HomeScreen() {
     }
   };
 
-  const fetchHistoryItems = async () => {
-    setIsHistoryLoading(true);
-    try {
-      const numberOfRecords = 10;
+  // const fetchHistoryItems = async () => {
+  //   setIsHistoryLoading(true);
+  //   try {
+  //     const numberOfRecords = 10;
 
-      const response = await fetch(
-        `https://nestjs-app-749460609316.us-central1.run.app/logs?limit=${numberOfRecords}&all=false`,
-        {
-          method: 'GET',
-        },
+  //     const response = await fetch(
+  //       `https://nestjs-app-749460609316.us-central1.run.app/logs?limit=${numberOfRecords}&all=false`,
+  //       {
+  //         method: 'GET',
+  //       },
 
-      );
+  //     );
 
-      if (!response.ok) {
-        throw new Error('Failed to get bracha logs.');
-      }
+  //     if (!response.ok) {
+  //       throw new Error('Failed to get bracha logs.');
+  //     }
 
-      const logData = await response.json();
-      const structuredLogData =
-        transformLogsIntoHistoryItems(logData?.logs) || [];
-      //@ts-ignore
-      setHistoryItems(structuredLogData);
-      console.log('Fetched log data:', structuredLogData);
-    } catch (error: any) {
-      console.error('Failed to fetch logs:', error);
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  };
+  //     const logData = await response.json();
+  //     const structuredLogData =
+  //       transformLogsIntoHistoryItems(logData?.logs) || [];
+  //     //@ts-ignore
+  //     setHistoryItems(structuredLogData);
+  //     console.log('Fetched log data:', structuredLogData);
+  //   } catch (error: any) {
+  //     console.error('Failed to fetch logs:', error);
+  //   } finally {
+  //     setIsHistoryLoading(false);
+  //   }
+  // };
 
   const slideAnim = useRef(new Animated.Value(-100)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -334,7 +334,7 @@ export default function HomeScreen() {
         <Text style={styles.logoText}>BrachaBuddy</Text>
       </View>
 
-      <ScrollView>
+      <View>
         <View style={styles.topSectionContainer}>
           <Animated.View
             style={[styles.thumbnailContainer, animatedThumbnailBorderStyle]}>
@@ -451,7 +451,7 @@ export default function HomeScreen() {
 
         {error && <Text style={styles.errorText}>{error}</Text>}
 
-        <View style={styles.historyContainer}>
+        {/* <View style={styles.historyContainer}>
           <View style={styles.titleWrapper}>
             <Text style={styles.title}>History</Text>
           </View>
@@ -467,8 +467,8 @@ export default function HomeScreen() {
                 <HistoryItem key={item?.id} text={item?.text || 'No Title'} brachaDescription={item?.description || 'No Description'} img={item.img} />
               ))}
           </View>
-        </View>
-      </ScrollView>
+        </View> */}
+      </View>
 
       <View style={styles.buttonContainer}>
         {cameraOpened ? (
