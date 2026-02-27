@@ -449,7 +449,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {error && <Text style={styles.errorText}>Sorry, something went wrong. Please try again later.</Text>}
 
         <View style={styles.historyContainer}>
           <View style={styles.titleWrapper}>
