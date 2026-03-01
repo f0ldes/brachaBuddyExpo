@@ -22,6 +22,8 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Pulse } from 'react-native-animated-spinkit';
 import transformLogsIntoHistoryItems from '../utils/transformLogHistoryItems';
+import { authenticatedFetch } from '../utils/apiClient';
+import { useAuth } from '../contexts/AuthContext';
 
 if (__DEV__) {
   const originalFetch = global.fetch;
@@ -115,6 +117,8 @@ export interface LogEntry {
 }
 
 export default function HomeScreen() {
+  const { signOut } = useAuth();
+
   const [historyItems, setHistoryItems] = useState([
     {
       id: '1',
@@ -198,17 +202,14 @@ export default function HomeScreen() {
 
         try {
           console.log('📤 Sending image to API using multipart/form-data...');
-          const response = await fetch(
-            'https://nestjs-app-749460609316.us-central1.run.app/upload',
-            {
-              method: 'POST',
-              headers: {
-                accept: 'application/json',
-              },
-              body: formData,
-              signal: controller.signal,
+          const response = await authenticatedFetch('/upload', {
+            method: 'POST',
+            headers: {
+              accept: 'application/json',
             },
-          );
+            body: formData,
+            signal: controller.signal,
+          });
 
           clearTimeout(timeoutId);
 
@@ -260,12 +261,9 @@ export default function HomeScreen() {
     try {
       const numberOfRecords = 10;
 
-      const response = await fetch(
-        `https://nestjs-app-749460609316.us-central1.run.app/logs?limit=${numberOfRecords}&all=false`,
-        {
-          method: 'GET',
-        },
-
+      const response = await authenticatedFetch(
+        `/logs?limit=${numberOfRecords}&all=false`,
+        { method: 'GET' },
       );
 
       if (!response.ok) {
@@ -332,6 +330,9 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.pageContainer}>
       <View style={styles.logoContainer}>
         <Text style={styles.logoText}>BrachaBuddy</Text>
+        <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView>
@@ -533,6 +534,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
+  },
+  signOutButton: {
+    position: 'absolute',
+    right: 0,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  signOutText: {
+    color: '#D4A017',
+    fontSize: 14,
+    fontWeight: '600',
   },
   topSectionContainer: {
     flexDirection: 'column',

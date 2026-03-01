@@ -1,11 +1,41 @@
 import React, { useCallback } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import HomeScreen from './screens/HomeScreen';
+import LoginScreen from './screens/LoginScreen';
 
 SplashScreen.preventAutoHideAsync();
+
+const Stack = createNativeStackNavigator();
+
+function AppNavigator() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#D4A017" />
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {user ? (
+          <Stack.Screen name="Home" component={HomeScreen} />
+        ) : (
+          <Stack.Screen name="Login" component={LoginScreen} />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -29,9 +59,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.containerStyle} onLayout={onLayoutRootView}>
-        <SafeAreaView style={styles.safeContainerStyle}>
-          <HomeScreen />
-        </SafeAreaView>
+        <AuthProvider>
+          <AppNavigator />
+        </AuthProvider>
       </View>
     </SafeAreaProvider>
   );
@@ -40,13 +70,12 @@ export default function App() {
 const styles = StyleSheet.create({
   containerStyle: {
     backgroundColor: '#FFEEBF',
-    height: '100%',
-    width: '100%',
+    flex: 1,
   },
-  safeContainerStyle: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#FFEEBF',
-    height: '100%',
-    width: '100%',
   },
 });
-

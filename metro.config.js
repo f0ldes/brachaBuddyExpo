@@ -1,3 +1,10 @@
 const { getDefaultConfig } = require('expo/metro-config');
 
-module.exports = getDefaultConfig(__dirname);
+const config = getDefaultConfig(__dirname);
+
+// Firebase JS SDK workaround for Expo SDK 53+
+// https://github.com/expo/expo/issues/36588
+config.resolver.sourceExts.push('cjs');
+config.resolver.unstable_enablePackageExports = false;
+
+module.exports = config;
