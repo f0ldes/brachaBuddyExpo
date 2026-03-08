@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,9 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -29,6 +31,20 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('hasSeenWelcome').then(value => {
+      if (!value) {
+        setShowWelcome(true);
+      }
+    });
+  }, []);
+
+  const dismissWelcome = async () => {
+    await AsyncStorage.setItem('hasSeenWelcome', 'true');
+    setShowWelcome(false);
+  };
 
   const handleEmailAuth = async () => {
     if (!email || !password) {
@@ -72,6 +88,25 @@ export default function LoginScreen() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <Modal
+        visible={showWelcome}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissWelcome}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Welcome!</Text>
+            <Text style={styles.modalBody}>
+              Thanks for using BrachaBuddy! Please login to get
+              started.
+            </Text>
+            <TouchableOpacity style={styles.modalButton} onPress={dismissWelcome}>
+              <Text style={styles.modalButtonText}>Got it!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Text style={styles.title}>BrachaBuddy</Text>
       <Text style={styles.subtitle}>
         {isSignUp ? 'Create Account' : 'Welcome Back'}
@@ -188,5 +223,45 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 20,
     fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#FFEEBF',
+    borderRadius: 20,
+    padding: 28,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#373329',
+    fontFamily: 'ShipporiMincho-Bold',
+    marginBottom: 12,
+  },
+  modalBody: {
+    fontSize: 16,
+    color: '#373329',
+    textAlign: 'center',
+    lineHeight: 24,
+    fontFamily: 'ShipporiMincho-Regular',
+    marginBottom: 24,
+  },
+  modalButton: {
+    backgroundColor: '#D4A017',
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 40,
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
