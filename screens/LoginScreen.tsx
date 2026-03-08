@@ -97,7 +97,7 @@ export default function LoginScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Welcome!</Text>
             <Text style={styles.modalBody}>
-              Thanks for using BrachaBuddy! Please login to get
+              Thanks for using BrachaBuddy!✨ Please login to get
               started.
             </Text>
             <TouchableOpacity style={styles.modalButton} onPress={dismissWelcome}>
