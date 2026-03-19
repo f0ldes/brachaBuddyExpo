@@ -15,10 +15,14 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
+  OAuthProvider,
   signInWithCredential,
 } from 'firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import { auth } from '../config/firebase';
+import { useAuth } from '../contexts/AuthContext';
 
 // TODO: Replace with your actual Web client ID from Firebase Console > Auth > Google provider
 GoogleSignin.configure({
@@ -27,6 +31,7 @@ GoogleSignin.configure({
 });
 
 export default function LoginScreen() {
+  const { continueAsGuest } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -78,6 +83,41 @@ export default function LoginScreen() {
     } catch (error: any) {
       if (error.code !== 'SIGN_IN_CANCELLED') {
         Alert.alert('Google Sign-In Error', error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setLoading(true);
+    try {
+      const nonce = Math.random().toString(36).substring(2, 10);
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        nonce,
+      );
+
+      const appleCredential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce: hashedNonce,
+      });
+
+      const { identityToken } = appleCredential;
+      if (!identityToken) throw new Error('No identity token from Apple');
+
+      const provider = new OAuthProvider('apple.com');
+      const credential = provider.credential({
+        idToken: identityToken,
+        rawNonce: nonce,
+      });
+      await signInWithCredential(auth, credential);
+    } catch (error: any) {
+      if (error.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('Apple Sign-In Error', error.message);
       }
     } finally {
       setLoading(false);
@@ -146,12 +186,29 @@ export default function LoginScreen() {
         <Text style={styles.googleButtonText}>Sign in with Google</Text>
       </TouchableOpacity>
 
+      {Platform.OS === 'ios' && (
+        <AppleAuthentication.AppleAuthenticationButton
+          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+          cornerRadius={40}
+          style={[styles.appleButton, loading && styles.buttonDisabled]}
+          onPress={handleAppleSignIn}
+        />
+      )}
+
       <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
         <Text style={styles.toggleText}>
           {isSignUp
             ? 'Already have an account? Sign In'
             : "Don't have an account? Sign Up"}
         </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.guestButton}
+        onPress={continueAsGuest}
+        disabled={loading}>
+        <Text style={styles.guestButtonText}>Continue as Guest</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );
@@ -218,11 +275,25 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
+  appleButton: {
+    height: 48,
+    marginTop: 12,
+  },
   toggleText: {
     color: '#D4A017',
     textAlign: 'center',
     marginTop: 20,
     fontSize: 14,
+  },
+  guestButton: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  guestButtonText: {
+    color: '#A0977D',
+    fontSize: 15,
+    textDecorationLine: 'underline',
   },
   modalOverlay: {
     flex: 1,

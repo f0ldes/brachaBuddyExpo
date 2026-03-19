@@ -7,8 +7,10 @@ export async function authenticatedFetch(
   options: RequestInit = {},
 ): Promise<Response> {
   const user = auth.currentUser;
+
+  // If no user (guest mode), make an unauthenticated request
   if (!user) {
-    throw new Error('User not authenticated');
+    return fetch(`${API_BASE_URL}${path}`, options);
   }
 
   // getIdToken() returns cached token if valid, auto-refreshes if expired

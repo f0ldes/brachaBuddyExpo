@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
+  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -117,7 +119,42 @@ export interface LogEntry {
 }
 
 export default function HomeScreen() {
-  const { signOut } = useAuth();
+  const { signOut, isGuest } = useAuth();
+  const [showGuestWarning, setShowGuestWarning] = useState(false);
+
+  useEffect(() => {
+    if (isGuest) {
+      setShowGuestWarning(true);
+    }
+  }, [isGuest]);
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all your data. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await authenticatedFetch('/account', {
+                method: 'DELETE',
+              });
+              if (!response.ok) {
+                throw new Error('Failed to delete account');
+              }
+              await signOut();
+            } catch (error: any) {
+              Alert.alert('Error', 'Failed to delete account. Please try again.');
+              console.error('Account deletion error:', error);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const [historyItems, setHistoryItems] = useState([
     {
@@ -328,10 +365,35 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.pageContainer}>
+      <Modal
+        visible={showGuestWarning}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGuestWarning(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Guest Mode</Text>
+            <Text style={styles.modalBody}>
+              Be mindful what you post!{'\n'}Your uploads will be visible to everyone.
+            </Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowGuestWarning(false)}>
+              <Text style={styles.modalButtonText}>Got it!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.logoContainer}>
+        {!isGuest && (
+          <TouchableOpacity onPress={handleDeleteAccount} style={styles.deleteAccountButton}>
+            <Text style={styles.deleteAccountText}>Delete Account</Text>
+          </TouchableOpacity>
+        )}
         <Text style={styles.logoText}>BrachaBuddy</Text>
         <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <Text style={styles.signOutText}>{isGuest ? 'Sign In' : 'Sign Out'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -535,6 +597,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: '100%',
   },
+  deleteAccountButton: {
+    position: 'absolute',
+    left: 0,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  deleteAccountText: {
+    color: '#D32F2F',
+    fontSize: 12,
+  },
   signOutButton: {
     position: 'absolute',
     right: 0,
@@ -712,5 +784,45 @@ const styles = StyleSheet.create({
   spinnerText: {
     fontSize: 40,
     color: '#D4A017',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#FFEEBF',
+    borderRadius: 20,
+    padding: 28,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#373329',
+    fontFamily: 'ShipporiMincho-Bold',
+    marginBottom: 12,
+  },
+  modalBody: {
+    fontSize: 16,
+    color: '#373329',
+    textAlign: 'center',
+    lineHeight: 24,
+    fontFamily: 'ShipporiMincho-Regular',
+    marginBottom: 24,
+  },
+  modalButton: {
+    backgroundColor: '#D4A017',
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 40,
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
