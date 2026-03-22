@@ -14,7 +14,7 @@ SplashScreen.preventAutoHideAsync();
 const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
-  const { user, isGuest, loading } = useAuth();
+  const { loading } = useAuth();
 
   if (loading) {
     return (
@@ -27,11 +27,8 @@ function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {user || isGuest ? (
-          <Stack.Screen name="Home" component={HomeScreen} />
-        ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
-        )}
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Login" component={LoginScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

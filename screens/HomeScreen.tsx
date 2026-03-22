@@ -7,8 +7,6 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  Alert,
-  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -25,6 +23,9 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Pulse } from 'react-native-animated-spinkit';
 import transformLogsIntoHistoryItems from '../utils/transformLogHistoryItems';
 import { authenticatedFetch } from '../utils/apiClient';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
 
 if (__DEV__) {
@@ -119,41 +120,37 @@ export interface LogEntry {
 }
 
 export default function HomeScreen() {
-  const { signOut, isGuest } = useAuth();
-  const [showGuestWarning, setShowGuestWarning] = useState(false);
+  const { isGuest } = useAuth();
+  const navigation = useNavigation<any>();
+  const [showTutorial, setShowTutorial] = useState(false);
+  const tutorialFadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (isGuest) {
-      setShowGuestWarning(true);
+      AsyncStorage.getItem('tutorialLastDismissed').then(value => {
+        const shouldShow = !value || (Date.now() - parseInt(value, 10)) > 30 * 24 * 60 * 60 * 1000;
+        if (shouldShow) {
+          setShowTutorial(true);
+          Animated.timing(tutorialFadeAnim, {
+            toValue: 1,
+            duration: 600,
+            delay: 500,
+            useNativeDriver: true,
+          }).start();
+        }
+      });
+    } else {
+      setShowTutorial(false);
     }
   }, [isGuest]);
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This will permanently delete your account and all your data. This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const response = await authenticatedFetch('/account', {
-                method: 'DELETE',
-              });
-              if (!response.ok) {
-                throw new Error('Failed to delete account');
-              }
-              await signOut();
-            } catch (error: any) {
-              Alert.alert('Error', 'Failed to delete account. Please try again.');
-              console.error('Account deletion error:', error);
-            }
-          },
-        },
-      ],
-    );
+  const dismissTutorial = () => {
+    AsyncStorage.setItem('tutorialLastDismissed', Date.now().toString());
+    Animated.timing(tutorialFadeAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => setShowTutorial(false));
   };
 
   const [historyItems, setHistoryItems] = useState([
@@ -365,36 +362,25 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.pageContainer}>
-      <Modal
-        visible={showGuestWarning}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowGuestWarning(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Guest Mode</Text>
-            <Text style={styles.modalBody}>
-              Be mindful what you post!{'\n'}Your uploads will be visible to everyone.
-            </Text>
-            <TouchableOpacity
-              style={styles.modalButton}
-              onPress={() => setShowGuestWarning(false)}>
-              <Text style={styles.modalButtonText}>Got it!</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
       <View style={styles.logoContainer}>
-        {!isGuest && (
-          <TouchableOpacity onPress={handleDeleteAccount} style={styles.deleteAccountButton}>
-            <Text style={styles.deleteAccountText}>Delete Account</Text>
-          </TouchableOpacity>
-        )}
         <Text style={styles.logoText}>BrachaBuddy</Text>
-        <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
-          <Text style={styles.signOutText}>{isGuest ? 'Sign In' : 'Sign Out'}</Text>
+        <TouchableOpacity
+          onPress={() => {
+            setShowTutorial(false);
+            AsyncStorage.setItem('tutorialLastDismissed', Date.now().toString());
+            navigation.navigate('Login');
+          }}
+          style={styles.accountButton}>
+          <Ionicons name={isGuest ? "person-circle-outline" : "person-circle"} size={30} color="#D4A017" />
         </TouchableOpacity>
+        {showTutorial && isGuest && (
+          <Animated.View style={[styles.tutorialBubble, { opacity: tutorialFadeAnim }]}>
+            <View style={styles.tutorialArrow} />
+            <TouchableOpacity onPress={dismissTutorial} activeOpacity={0.7}>
+              <Text style={styles.tutorialText}>Login / Create an account</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
       </View>
 
       <ScrollView>
@@ -597,26 +583,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: '100%',
   },
-  deleteAccountButton: {
-    position: 'absolute',
-    left: 0,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  deleteAccountText: {
-    color: '#D32F2F',
-    fontSize: 12,
-  },
-  signOutButton: {
+  accountButton: {
     position: 'absolute',
     right: 0,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  signOutText: {
-    color: '#D4A017',
-    fontSize: 14,
-    fontWeight: '600',
+    padding: 4,
   },
   topSectionContainer: {
     flexDirection: 'column',
@@ -785,44 +755,33 @@ const styles = StyleSheet.create({
     fontSize: 40,
     color: '#D4A017',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+  tutorialBubble: {
+    position: 'absolute',
+    top: 42,
+    right: -2,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 100,
   },
-  modalContent: {
-    backgroundColor: '#FFEEBF',
-    borderRadius: 20,
-    padding: 28,
-    width: '100%',
-    alignItems: 'center',
+  tutorialArrow: {
+    position: 'absolute',
+    top: -5,
+    right: 12,
+    width: 10,
+    height: 10,
+    backgroundColor: '#FFFFFF',
+    transform: [{ rotate: '45deg' }],
   },
-  modalTitle: {
-    fontSize: 26,
-    fontWeight: 'bold',
+  tutorialText: {
+    fontSize: 13,
     color: '#373329',
-    fontFamily: 'ShipporiMincho-Bold',
-    marginBottom: 12,
-  },
-  modalBody: {
-    fontSize: 16,
-    color: '#373329',
-    textAlign: 'center',
-    lineHeight: 24,
     fontFamily: 'ShipporiMincho-Regular',
-    marginBottom: 24,
-  },
-  modalButton: {
-    backgroundColor: '#D4A017',
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    borderRadius: 40,
-  },
-  modalButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
   },
 });

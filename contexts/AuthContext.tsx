@@ -28,6 +28,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(firebaseUser);
       if (firebaseUser) {
         setIsGuest(false);
+      } else {
+        setIsGuest(true);
       }
       setLoading(false);
     });

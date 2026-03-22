@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,10 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Modal,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -23,6 +24,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import { auth } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { authenticatedFetch } from '../utils/apiClient';
 
 // TODO: Replace with your actual Web client ID from Firebase Console > Auth > Google provider
 GoogleSignin.configure({
@@ -31,25 +33,22 @@ GoogleSignin.configure({
 });
 
 export default function LoginScreen() {
-  const { continueAsGuest } = useAuth();
+  const { user, continueAsGuest, signOut } = useAuth();
+  const navigation = useNavigation<any>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(false);
+
+  // Track if user was a guest when they entered this screen
+  const wasGuest = useRef(!user);
 
   useEffect(() => {
-    AsyncStorage.getItem('hasSeenWelcome').then(value => {
-      if (!value) {
-        setShowWelcome(true);
-      }
-    });
-  }, []);
-
-  const dismissWelcome = async () => {
-    await AsyncStorage.setItem('hasSeenWelcome', 'true');
-    setShowWelcome(false);
-  };
+    // Auto-navigate back when a guest successfully authenticates
+    if (user && wasGuest.current) {
+      navigation.goBack();
+    }
+  }, [user]);
 
   const handleEmailAuth = async () => {
     if (!email || !password) {
@@ -124,100 +123,147 @@ export default function LoginScreen() {
     }
   };
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <Modal
-        visible={showWelcome}
-        transparent
-        animationType="fade"
-        onRequestClose={dismissWelcome}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Welcome!</Text>
-            <Text style={styles.modalBody}>
-              Thanks for using BrachaBuddy!✨ Please login to get
-              started.
-            </Text>
-            <TouchableOpacity style={styles.modalButton} onPress={dismissWelcome}>
-              <Text style={styles.modalButtonText}>Got it!</Text>
-            </TouchableOpacity>
-          </View>
+  const handleSignOut = async () => {
+    await signOut();
+    navigation.goBack();
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and all your data. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await authenticatedFetch('/account', {
+                method: 'DELETE',
+              });
+              if (!response.ok) {
+                throw new Error('Failed to delete account');
+              }
+              await signOut();
+              navigation.goBack();
+            } catch (error: any) {
+              Alert.alert('Error', 'Failed to delete account. Please try again.');
+              console.error('Account deletion error:', error);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // Authenticated user view — account management
+  if (user) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
+          <Ionicons name="close" size={28} color="#373329" />
+        </TouchableOpacity>
+        <View style={styles.container}>
+          <Text style={styles.title}>BrachaBuddy</Text>
+          <Text style={styles.subtitle}>Account</Text>
+          <Text style={styles.accountEmail}>{user.email || 'Signed In'}</Text>
+
+          <TouchableOpacity style={styles.button} onPress={handleSignOut}>
+            <Text style={styles.buttonText}>Sign Out</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteAccount}>
+            <Text style={styles.deleteButtonText}>Delete Account</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
+      </SafeAreaView>
+    );
+  }
 
-      <Text style={styles.title}>BrachaBuddy</Text>
-      <Text style={styles.subtitle}>
-        {isSignUp ? 'Create Account' : 'Welcome Back'}
-      </Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#A0977D"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#A0977D"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleEmailAuth}
-        disabled={loading}>
-        <Text style={styles.buttonText}>
-          {loading ? 'Please wait...' : isSignUp ? 'Sign Up' : 'Sign In'}
+  // Guest view — login form
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>
+        <Ionicons name="close" size={28} color="#373329" />
+      </TouchableOpacity>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <Text style={styles.title}>BrachaBuddy</Text>
+        <Text style={styles.subtitle}>
+          {isSignUp ? 'Create Account' : 'Welcome Back'}
         </Text>
-      </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.googleButton, loading && styles.buttonDisabled]}
-        onPress={handleGoogleSignIn}
-        disabled={loading}>
-        <Text style={styles.googleButtonText}>Sign in with Google</Text>
-      </TouchableOpacity>
-
-      {Platform.OS === 'ios' && (
-        <AppleAuthentication.AppleAuthenticationButton
-          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-          buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-          cornerRadius={40}
-          style={[styles.appleButton, loading && styles.buttonDisabled]}
-          onPress={handleAppleSignIn}
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          placeholderTextColor="#A0977D"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
         />
-      )}
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor="#A0977D"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
 
-      <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
-        <Text style={styles.toggleText}>
-          {isSignUp
-            ? 'Already have an account? Sign In'
-            : "Don't have an account? Sign Up"}
-        </Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleEmailAuth}
+          disabled={loading}>
+          <Text style={styles.buttonText}>
+            {loading ? 'Please wait...' : isSignUp ? 'Sign Up' : 'Sign In'}
+          </Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.guestButton}
-        onPress={continueAsGuest}
-        disabled={loading}>
-        <Text style={styles.guestButtonText}>Continue as Guest</Text>
-      </TouchableOpacity>
-    </KeyboardAvoidingView>
+        <TouchableOpacity
+          style={[styles.googleButton, loading && styles.buttonDisabled]}
+          onPress={handleGoogleSignIn}
+          disabled={loading}>
+          <Text style={styles.googleButtonText}>Sign in with Google</Text>
+        </TouchableOpacity>
+
+        {Platform.OS === 'ios' && (
+          <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+            cornerRadius={40}
+            style={[styles.appleButton, loading && styles.buttonDisabled]}
+            onPress={handleAppleSignIn}
+          />
+        )}
+
+        <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
+          <Text style={styles.toggleText}>
+            {isSignUp
+              ? 'Already have an account? Sign In'
+              : "Don't have an account? Sign Up"}
+          </Text>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#FFEEBF',
+  },
+  closeButton: {
+    alignSelf: 'flex-end',
+    padding: 8,
+    marginRight: 16,
+    marginTop: 4,
+  },
+  container: {
+    flex: 1,
     justifyContent: 'center',
     padding: 24,
   },
@@ -232,6 +278,13 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 18,
     color: '#373329',
+    textAlign: 'center',
+    marginBottom: 32,
+    fontFamily: 'ShipporiMincho-Regular',
+  },
+  accountEmail: {
+    fontSize: 16,
+    color: '#A0977D',
     textAlign: 'center',
     marginBottom: 32,
     fontFamily: 'ShipporiMincho-Regular',
@@ -285,54 +338,13 @@ const styles = StyleSheet.create({
     marginTop: 20,
     fontSize: 14,
   },
-  guestButton: {
+  deleteButton: {
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 16,
   },
-  guestButtonText: {
-    color: '#A0977D',
+  deleteButtonText: {
+    color: '#D32F2F',
     fontSize: 15,
-    textDecorationLine: 'underline',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: '#FFEEBF',
-    borderRadius: 20,
-    padding: 28,
-    width: '100%',
-    alignItems: 'center',
-  },
-  modalTitle: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#373329',
-    fontFamily: 'ShipporiMincho-Bold',
-    marginBottom: 12,
-  },
-  modalBody: {
-    fontSize: 16,
-    color: '#373329',
-    textAlign: 'center',
-    lineHeight: 24,
-    fontFamily: 'ShipporiMincho-Regular',
-    marginBottom: 24,
-  },
-  modalButton: {
-    backgroundColor: '#D4A017',
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    borderRadius: 40,
-  },
-  modalButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
   },
 });
