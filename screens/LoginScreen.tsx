@@ -246,6 +246,12 @@ export default function LoginScreen() {
               : "Don't have an account? Sign Up"}
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => {
+          navigation.navigate('Home', { openFeedback: true });
+        }}>
+          <Text style={styles.feedbackLink}>Give us feedback</Text>
+        </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -346,5 +352,12 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     color: '#D32F2F',
     fontSize: 15,
+  },
+  feedbackLink: {
+    color: '#D4A017',
+    textAlign: 'center',
+    marginTop: 16,
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
 });

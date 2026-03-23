@@ -7,6 +7,10 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
+  Modal,
+  TextInput,
+  Alert,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,7 +27,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Pulse } from 'react-native-animated-spinkit';
 import transformLogsIntoHistoryItems from '../utils/transformLogHistoryItems';
 import { authenticatedFetch } from '../utils/apiClient';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
@@ -122,8 +126,16 @@ export interface LogEntry {
 export default function HomeScreen() {
   const { isGuest } = useAuth();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const [showTutorial, setShowTutorial] = useState(false);
   const tutorialFadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (route.params?.openFeedback) {
+      setFeedbackModalVisible(true);
+      navigation.setParams({ openFeedback: undefined });
+    }
+  }, [route.params?.openFeedback]);
 
   useEffect(() => {
     if (isGuest) {
@@ -177,6 +189,38 @@ export default function HomeScreen() {
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+
+  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [isSendingFeedback, setIsSendingFeedback] = useState(false);
+
+  const submitFeedback = async () => {
+    if (feedbackRating === 0) {
+      Alert.alert('Please select a rating');
+      return;
+    }
+    setIsSendingFeedback(true);
+    try {
+      const response = await authenticatedFetch('/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: feedbackRating, feedback: feedbackText }),
+      });
+      if (response.ok) {
+        Alert.alert('Thank you!', 'Your feedback has been submitted.');
+        setFeedbackModalVisible(false);
+        setFeedbackRating(0);
+        setFeedbackText('');
+      } else {
+        Alert.alert('Error', 'Failed to submit feedback. Please try again.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setIsSendingFeedback(false);
+    }
+  };
 
   const spinValue = useRef(new Animated.Value(0)).current;
 
@@ -363,6 +407,11 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.pageContainer}>
       <View style={styles.logoContainer}>
+        <TouchableOpacity
+          onPress={() => setFeedbackModalVisible(true)}
+          style={styles.infoButton}>
+          <Ionicons name="information-circle-outline" size={30} color="#D4A017" />
+        </TouchableOpacity>
         <Text style={styles.logoText}>BrachaBuddy</Text>
         <TouchableOpacity
           onPress={() => {
@@ -563,6 +612,53 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      <Modal
+        visible={feedbackModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setFeedbackModalVisible(false)}>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setFeedbackModalVisible(false)}>
+          <Pressable style={styles.modalContent} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Send us feedback!</Text>
+
+            <Text style={styles.modalLabel}>How would you rate BrachaBuddy?</Text>
+            <View style={styles.starsContainer}>
+              {[1, 2, 3, 4, 5].map(star => (
+                <TouchableOpacity key={star} onPress={() => setFeedbackRating(star)}>
+                  <Ionicons
+                    name={star <= feedbackRating ? 'star' : 'star-outline'}
+                    size={36}
+                    color="#D4A017"
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.modalLabel}>Any additional feedback?</Text>
+            <TextInput
+              style={styles.feedbackInput}
+              placeholder="Tell us what you think..."
+              placeholderTextColor="#A0977D"
+              multiline
+              numberOfLines={4}
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+            />
+
+            <TouchableOpacity
+              style={[styles.submitButton, isSendingFeedback && styles.buttonDisabled]}
+              disabled={isSendingFeedback}
+              onPress={submitFeedback}>
+              <Text style={styles.buttonText}>
+                {isSendingFeedback ? 'Sending...' : 'Submit'}
+              </Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -582,6 +678,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
+  },
+  infoButton: {
+    position: 'absolute',
+    left: 0,
+    padding: 4,
   },
   accountButton: {
     position: 'absolute',
@@ -783,5 +884,62 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#373329',
     fontFamily: 'ShipporiMincho-Regular',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFEEBF',
+    borderRadius: 20,
+    padding: 24,
+    width: '85%',
+    borderWidth: 2,
+    borderColor: '#D4A017',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontFamily: 'ShipporiMincho-Bold',
+    color: '#373329',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalLabel: {
+    fontSize: 15,
+    fontFamily: 'ShipporiMincho-Regular',
+    color: '#373329',
+    marginBottom: 8,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  feedbackInput: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#D4A017',
+    padding: 12,
+    fontSize: 15,
+    fontFamily: 'ShipporiMincho-Regular',
+    color: '#373329',
+    textAlignVertical: 'top',
+    minHeight: 100,
+    marginBottom: 20,
+  },
+  submitButton: {
+    backgroundColor: '#D4A017',
+    paddingVertical: 12,
+    borderRadius: 40,
+    alignItems: 'center',
   },
 });
