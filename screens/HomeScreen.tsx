@@ -11,6 +11,7 @@ import {
   TextInput,
   Alert,
   Pressable,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -124,7 +125,7 @@ export interface LogEntry {
 }
 
 export default function HomeScreen() {
-  const { isGuest } = useAuth();
+  const { user, isGuest } = useAuth();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const [showTutorial, setShowTutorial] = useState(false);
@@ -190,6 +191,56 @@ export default function HomeScreen() {
 
   const [error, setError] = useState<string | null>(null);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    setError(null);
+
+    const hasResult = !!apiMessage;
+
+    if (hasResult) {
+      // Step 1: Fade out result card text + slide it down
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 50,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(borderAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: false,
+        }),
+      ]).start(() => {
+        setApiMessage('');
+        slideAnim.setValue(-100);
+
+        // Step 2: Crossfade captured photo to placeholder
+        Animated.timing(photoOpacityAnim, {
+          toValue: 0,
+          duration: 350,
+          useNativeDriver: true,
+        }).start(() => {
+          setCapturedPhoto(null);
+          Animated.timing(photoOpacityAnim, {
+            toValue: 1,
+            duration: 350,
+            useNativeDriver: true,
+          }).start();
+        });
+      });
+    }
+
+    await fetchHistoryItems(false);
+    setIsRefreshing(false);
+  };
+
   const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackText, setFeedbackText] = useState('');
@@ -245,9 +296,10 @@ export default function HomeScreen() {
     }
   }, [permission?.granted]);
 
+  // Fetch history on mount and when user logs in/out
   useEffect(() => {
     fetchHistoryItems();
-  }, []);
+  }, [user?.uid]);
 
   const cameraRef = useRef<CameraView>(null);
 
@@ -334,8 +386,8 @@ export default function HomeScreen() {
     }
   };
 
-  const fetchHistoryItems = async () => {
-    setIsHistoryLoading(true);
+  const fetchHistoryItems = async (showSpinner = true) => {
+    if (showSpinner) setIsHistoryLoading(true);
     try {
       const numberOfRecords = 10;
 
@@ -364,6 +416,7 @@ export default function HomeScreen() {
   const slideAnim = useRef(new Animated.Value(-100)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const borderAnim = useRef(new Animated.Value(0)).current;
+  const photoOpacityAnim = useRef(new Animated.Value(1)).current;
 
   const animatedThumbnailBorderStyle = {
     borderWidth: borderAnim.interpolate({
@@ -410,7 +463,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           onPress={() => setFeedbackModalVisible(true)}
           style={styles.infoButton}>
-          <Ionicons name="information-circle-outline" size={30} color="#D4A017" />
+          <Ionicons name="information-circle-outline" size={40} color="#D4A017" />
         </TouchableOpacity>
         <Text style={styles.logoText}>BrachaBuddy</Text>
         <TouchableOpacity
@@ -420,7 +473,11 @@ export default function HomeScreen() {
             navigation.navigate('Login');
           }}
           style={styles.accountButton}>
-          <Ionicons name={isGuest ? "person-circle-outline" : "person-circle"} size={40} color="#D4A017" />
+          {user?.photoURL ? (
+            <Image source={{ uri: user.photoURL }} style={styles.profilePhoto} />
+          ) : (
+            <Ionicons name={isGuest ? "person-circle-outline" : "person-circle"} size={40} color="#D4A017" />
+          )}
         </TouchableOpacity>
         {showTutorial && isGuest && (
           <Animated.View style={[styles.tutorialBubble, { opacity: tutorialFadeAnim }]}>
@@ -432,7 +489,15 @@ export default function HomeScreen() {
         )}
       </View>
 
-      <ScrollView>
+      <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor="#D4A017"
+            colors={['#D4A017']}
+          />
+        }>
         <View style={styles.topSectionContainer}>
           <Animated.View
             style={[styles.thumbnailContainer, animatedThumbnailBorderStyle]}>
@@ -445,8 +510,8 @@ export default function HomeScreen() {
                 />
               </View>
             ) : (
-              <Image
-                style={styles.thumbnail}
+              <Animated.Image
+                style={[styles.thumbnail, { opacity: photoOpacityAnim }]}
                 source={
                   capturedPhoto ?? require('../assets/images/thumbnail.png')
                 }
@@ -488,21 +553,28 @@ export default function HomeScreen() {
                     );
                     return (
                       <Animated.View style={[styles.blessingContainer]}>
+                        {content.brachaHebrew ? (
+                          <Animated.Text
+                            style={[styles.blessingHebrew, {opacity: fadeAnim}]}>
+                            {content.brachaHebrew}
+                          </Animated.Text>
+                        ) : null}
                         <Animated.Text
-                          style={[styles.blessingTitle, {opacity: fadeAnim}]}>
-                          Blessing:
+                          style={[styles.blessingEnglish, {opacity: fadeAnim}]}>
+                          {content.brachaEnglish}
                         </Animated.Text>
-                        <Animated.Text
-                          style={[styles.blessingText, {opacity: fadeAnim}]}>
-                          {content.bracha}
-                        </Animated.Text>
-                        <Animated.Text
-                          style={[
-                            styles.blessingDescription,
-                            {opacity: fadeAnim},
-                          ]}>
-                          {content.description}
-                        </Animated.Text>
+                        {content.description ? (
+                          <Animated.Text
+                            style={[styles.blessingDescription, {opacity: fadeAnim}]}>
+                            {content.description}
+                          </Animated.Text>
+                        ) : null}
+                        {content.examples ? (
+                          <Animated.Text
+                            style={[styles.blessingExamples, {opacity: fadeAnim}]}>
+                            Examples: {content.examples}
+                          </Animated.Text>
+                        ) : null}
                       </Animated.View>
                     );
                   }
@@ -689,6 +761,13 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 4,
   },
+  profilePhoto: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#D4A017',
+  },
   topSectionContainer: {
     flexDirection: 'column',
     width: '100%',
@@ -814,24 +893,35 @@ const styles = StyleSheet.create({
   },
   blessingContainer: {
     marginTop: 8,
+    alignItems: 'center',
   },
-  blessingTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#373329',
-    marginBottom: 4,
-  },
-  blessingText: {
-    fontSize: 22,
+  blessingHebrew: {
+    fontSize: 24,
     color: '#D4A017',
-    marginBottom: 8,
+    marginBottom: 6,
+    textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  blessingEnglish: {
+    fontSize: 17,
+    color: '#373329',
+    marginBottom: 12,
     textAlign: 'center',
     fontFamily: 'ShipporiMincho-Regular',
   },
   blessingDescription: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#373329',
     lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  blessingExamples: {
+    fontSize: 12,
+    color: '#A0977D',
+    lineHeight: 18,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   noRecognitionText: {
     fontSize: 16,

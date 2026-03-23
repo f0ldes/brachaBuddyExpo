@@ -16,6 +16,8 @@ interface ParsedContent {
     isFood?: boolean;
     foodName?: string;
     bracha?: string;
+    brachaHebrew?: string;
+    brachaEnglish?: string;
     description?: string;
 }
 
@@ -72,7 +74,8 @@ const transformLogsIntoHistoryItems = (logs : LogItem[] ): HistoryItem[] => {
         }
 
 
-        const text = parsedContent?.foodName ? `${parsedContent.foodName}${parsedContent.bracha ? ` - ${parsedContent.bracha}` : ''}` : 'Unknown Item';
+        const brachaDisplay = parsedContent?.brachaEnglish || parsedContent?.bracha || '';
+        const text = parsedContent?.foodName ? `${parsedContent.foodName}${brachaDisplay ? ` - ${brachaDisplay}` : ''}` : 'Unknown Item';
         const description = parsedContent?.description;
 
         return {
