@@ -371,13 +371,13 @@ export default function HomeScreen() {
             navigation.navigate('Login');
           }}
           style={styles.accountButton}>
-          <Ionicons name={isGuest ? "person-circle-outline" : "person-circle"} size={30} color="#D4A017" />
+          <Ionicons name={isGuest ? "person-circle-outline" : "person-circle"} size={40} color="#D4A017" />
         </TouchableOpacity>
         {showTutorial && isGuest && (
           <Animated.View style={[styles.tutorialBubble, { opacity: tutorialFadeAnim }]}>
             <View style={styles.tutorialArrow} />
             <TouchableOpacity onPress={dismissTutorial} activeOpacity={0.7}>
-              <Text style={styles.tutorialText}>Login / Create an account</Text>
+              <Text style={styles.tutorialText}>Login and keep you history private!</Text>
             </TouchableOpacity>
           </Animated.View>
         )}
