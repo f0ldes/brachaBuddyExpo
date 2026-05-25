@@ -12,8 +12,20 @@ interface HistoryItem {
     description?: string;
 }
 
+interface BlessingContent {
+    name?: string;
+    brachaHebrew?: string;
+    brachaEnglish?: string;
+    coversFoods?: string[];
+    description?: string;
+}
+
 interface ParsedContent {
     isFood?: boolean;
+    // New (multi-food) shape
+    recognizedFoods?: string[];
+    blessings?: BlessingContent[];
+    // Legacy (single-food) shape
     foodName?: string;
     bracha?: string;
     brachaHebrew?: string;
@@ -74,9 +86,28 @@ const transformLogsIntoHistoryItems = (logs : LogItem[] ): HistoryItem[] => {
         }
 
 
-        const brachaDisplay = parsedContent?.brachaEnglish || parsedContent?.bracha || '';
-        const text = parsedContent?.foodName ? `${parsedContent.foodName}${brachaDisplay ? ` - ${brachaDisplay}` : ''}` : 'Unknown Item';
-        const description = parsedContent?.description;
+        // Prefer the new multi-food shape, fall back to the legacy single-food fields.
+        const foodText = parsedContent?.recognizedFoods?.length
+            ? parsedContent.recognizedFoods.join(', ')
+            : parsedContent?.foodName || '';
+
+        const brachaDisplay = parsedContent?.blessings?.length
+            ? parsedContent.blessings
+                  .map(b => b.brachaEnglish || b.name)
+                  .filter(Boolean)
+                  .join(', ')
+            : parsedContent?.brachaEnglish || parsedContent?.bracha || '';
+
+        const text = foodText
+            ? `${foodText}${brachaDisplay ? ` - ${brachaDisplay}` : ''}`
+            : 'Unknown Item';
+
+        const description = parsedContent?.blessings?.length
+            ? parsedContent.blessings
+                  .map(b => b.description)
+                  .filter(Boolean)
+                  .join(' ')
+            : parsedContent?.description;
 
         return {
             id: log.id || Math.random().toString(36).substring(2, 9),

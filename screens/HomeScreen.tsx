@@ -34,8 +34,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
 
 if (__DEV__) {
-  const originalFetch = global.fetch;
-  global.fetch = (...args) => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (...args) => {
     console.log(
       '🌐 FETCH REQUEST:',
       JSON.stringify(
@@ -533,7 +533,9 @@ export default function HomeScreen() {
                         apiMessage.description.message.content,
                       );
                       return (
-                        content.foodName ||
+                        (content.recognizedFoods?.length
+                          ? content.recognizedFoods.join(', ')
+                          : content.foodName) ||
                         apiMessage.description.recognized_item ||
                         'Item'
                       );
@@ -551,30 +553,79 @@ export default function HomeScreen() {
                     const content = JSON.parse(
                       apiMessage.description.message.content,
                     );
+
+                    // Non-food: show the (funny) remark, no blessing.
+                    if (content.isFood === false) {
+                      return (
+                        <Animated.Text
+                          style={[styles.blessingDescription, {opacity: fadeAnim}]}>
+                          {content.description ||
+                            'No blessing needed for this item.'}
+                        </Animated.Text>
+                      );
+                    }
+
+                    // New shape: an ordered array of blessings.
+                    // Legacy fallback: a single top-level blessing.
+                    const blessings =
+                      content.blessings?.length
+                        ? content.blessings
+                        : content.brachaEnglish
+                          ? [
+                              {
+                                brachaHebrew: content.brachaHebrew,
+                                brachaEnglish: content.brachaEnglish,
+                                description: content.description,
+                                coversFoods: content.foodName
+                                  ? [content.foodName]
+                                  : [],
+                              },
+                            ]
+                          : [];
+
+                    if (!blessings.length) {
+                      return (
+                        <Animated.Text
+                          style={[styles.noRecognitionText, {opacity: fadeAnim}]}>
+                          Could not determine the blessing for this item.
+                        </Animated.Text>
+                      );
+                    }
+
                     return (
                       <Animated.View style={[styles.blessingContainer]}>
-                        {content.brachaHebrew ? (
-                          <Animated.Text
-                            style={[styles.blessingHebrew, {opacity: fadeAnim}]}>
-                            {content.brachaHebrew}
-                          </Animated.Text>
-                        ) : null}
-                        <Animated.Text
-                          style={[styles.blessingEnglish, {opacity: fadeAnim}]}>
-                          {content.brachaEnglish}
-                        </Animated.Text>
-                        {content.description ? (
-                          <Animated.Text
-                            style={[styles.blessingDescription, {opacity: fadeAnim}]}>
-                            {content.description}
-                          </Animated.Text>
-                        ) : null}
-                        {content.examples ? (
-                          <Animated.Text
-                            style={[styles.blessingExamples, {opacity: fadeAnim}]}>
-                            Examples: {content.examples}
-                          </Animated.Text>
-                        ) : null}
+                        {blessings.map((blessing: any, index: number) => (
+                          <View
+                            key={index}
+                            style={[
+                              styles.blessingItem,
+                              index > 0 && styles.blessingItemDivider,
+                            ]}>
+                            {blessings.length > 1 &&
+                            blessing.coversFoods?.length ? (
+                              <Animated.Text
+                                style={[styles.blessingCovers, {opacity: fadeAnim}]}>
+                                {blessing.coversFoods.join(', ')}
+                              </Animated.Text>
+                            ) : null}
+                            {blessing.brachaHebrew ? (
+                              <Animated.Text
+                                style={[styles.blessingHebrew, {opacity: fadeAnim}]}>
+                                {blessing.brachaHebrew}
+                              </Animated.Text>
+                            ) : null}
+                            <Animated.Text
+                              style={[styles.blessingEnglish, {opacity: fadeAnim}]}>
+                              {blessing.brachaEnglish}
+                            </Animated.Text>
+                            {blessing.description ? (
+                              <Animated.Text
+                                style={[styles.blessingDescription, {opacity: fadeAnim}]}>
+                                {blessing.description}
+                              </Animated.Text>
+                            ) : null}
+                          </View>
+                        ))}
                       </Animated.View>
                     );
                   }
@@ -894,6 +945,24 @@ const styles = StyleSheet.create({
   blessingContainer: {
     marginTop: 8,
     alignItems: 'center',
+  },
+  blessingItem: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  blessingItemDivider: {
+    borderTopWidth: 1,
+    borderTopColor: '#F0E6C8',
+    paddingTop: 14,
+    marginTop: 6,
+  },
+  blessingCovers: {
+    fontSize: 14,
+    color: '#A0977D',
+    marginBottom: 6,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   blessingHebrew: {
     fontSize: 24,
