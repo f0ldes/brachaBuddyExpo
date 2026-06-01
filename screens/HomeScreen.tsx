@@ -131,6 +131,24 @@ export default function HomeScreen() {
   const [showTutorial, setShowTutorial] = useState(false);
   const tutorialFadeAnim = useRef(new Animated.Value(0)).current;
 
+  // Welcome modal — shown once per user. Bump the version suffix to re-show it
+  // to everyone (including returning users) after a meaningful update.
+  const WELCOME_KEY = 'hasSeenWelcome_v2';
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  useEffect(() => {
+    // Clean up the legacy key from before the versioned-welcome scheme.
+    AsyncStorage.removeItem('hasSeenWelcome');
+    AsyncStorage.getItem(WELCOME_KEY).then(value => {
+      if (!value) setShowWelcome(true);
+    });
+  }, []);
+
+  const dismissWelcome = () => {
+    AsyncStorage.setItem(WELCOME_KEY, 'true');
+    setShowWelcome(false);
+  };
+
   useEffect(() => {
     if (route.params?.openFeedback) {
       setFeedbackModalVisible(true);
@@ -169,7 +187,9 @@ export default function HomeScreen() {
   const [historyItems, setHistoryItems] = useState([
     {
       id: '1',
-      text: 'text',
+      bracha: '',
+      brachaHebrew: '',
+      foodName: '',
       img: require('../assets/images/bracha.svg'),
       description: 'bracha'
     },
@@ -459,6 +479,25 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.pageContainer}>
+      <Modal
+        visible={showWelcome}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissWelcome}>
+        <View style={styles.welcomeOverlay}>
+          <View style={styles.welcomeContent}>
+            <Text style={styles.welcomeTitle}>Thank you for using Bracha Buddy! 🙏</Text>
+            <Text style={styles.welcomeBody}>
+              We've updated our image recognition and eliminated some rookie
+              mistakes. Wishing you all the best — enjoy using Bracha Buddy!
+            </Text>
+            <TouchableOpacity style={styles.welcomeButton} onPress={dismissWelcome}>
+              <Text style={styles.welcomeButtonText}>Got it!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <View style={styles.logoContainer}>
         <TouchableOpacity
           onPress={() => setFeedbackModalVisible(true)}
@@ -560,7 +599,7 @@ export default function HomeScreen() {
                         <Animated.Text
                           style={[styles.blessingDescription, {opacity: fadeAnim}]}>
                           {content.description ||
-                            'No blessing needed for this item.'}
+                            'No blessing needed'}
                         </Animated.Text>
                       );
                     }
@@ -685,7 +724,7 @@ export default function HomeScreen() {
             )}
             {!isHistoryLoading && historyItems.length > 0 &&
               historyItems?.map(item => (
-                <HistoryItem key={item?.id} text={item?.text || 'No Title'} brachaDescription={item?.description || 'No Description'} img={item.img} />
+                <HistoryItem key={item?.id} bracha={item?.bracha || ''} brachaHebrew={item?.brachaHebrew || ''} foodName={item?.foodName || ''} brachaDescription={item?.description || 'No Description'} img={item.img} />
               ))}
           </View>
         </View>
@@ -1043,6 +1082,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#373329',
     fontFamily: 'ShipporiMincho-Regular',
+  },
+  welcomeOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  welcomeContent: {
+    backgroundColor: '#FFEEBF',
+    borderRadius: 20,
+    padding: 28,
+    width: '100%',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#D4A017',
+  },
+  welcomeTitle: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#373329',
+    fontFamily: 'ShipporiMincho-Bold',
+    marginBottom: 12,
+  },
+  welcomeBody: {
+    fontSize: 16,
+    color: '#373329',
+    textAlign: 'center',
+    lineHeight: 24,
+    fontFamily: 'ShipporiMincho-Regular',
+    marginBottom: 24,
+  },
+  welcomeButton: {
+    backgroundColor: '#D4A017',
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 40,
+  },
+  welcomeButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   modalOverlay: {
     flex: 1,

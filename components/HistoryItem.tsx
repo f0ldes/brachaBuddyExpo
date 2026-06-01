@@ -11,14 +11,22 @@ import {
 } from "react-native";
 
 interface HistoryItemProps {
-  img: string | any; 
-  text: string;
+  img: string | any;
+  bracha: string;
+  brachaHebrew: string;
+  foodName: string;
   brachaDescription: string;
 }
 
-export function HistoryItem({ img, text, brachaDescription }: HistoryItemProps) {
+export function HistoryItem({ img, bracha, brachaHebrew, foodName, brachaDescription }: HistoryItemProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+
+  // For non-food items the backend often repeats the same sentence in both the
+  // explanation and the food name, so only show "In the picture" when it adds info.
+  const normalize = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+  const showFoodName =
+    !!foodName && normalize(foodName) !== normalize(brachaDescription || '');
 
   const handleLongPress = () => {
     setModalVisible(true);
@@ -46,7 +54,14 @@ export function HistoryItem({ img, text, brachaDescription }: HistoryItemProps) 
         )}
 
         <View style={styles.textContainer}>
-          <Text style={styles.text}>{text}</Text>
+          <Text style={styles.text} numberOfLines={2}>
+            {bracha || foodName || 'No Bracha'}
+          </Text>
+          {!!brachaHebrew && (
+            <Text style={styles.textHebrew} numberOfLines={1}>
+              {brachaHebrew}
+            </Text>
+          )}
         </View>
 
         <Modal
@@ -65,13 +80,23 @@ export function HistoryItem({ img, text, brachaDescription }: HistoryItemProps) 
                 )}
                 
                 <View style={styles.modalTextContainer}>
-                  <Text style={styles.modalTitle}>{text || 'No Bracha'}</Text>
+                  <Text style={styles.modalTitle}>{bracha || 'No Bracha'}</Text>
+                  {!!brachaHebrew && (
+                    <Text style={styles.modalTitleHebrew}>{brachaHebrew}</Text>
+                  )}
                 </View>
 
                 <View style={styles.modalTextContainer}>
                   <Text style={styles.modalBracha}>{brachaDescription || 'No Description'}</Text>
                 </View>
-                
+
+                {showFoodName && (
+                  <View style={styles.modalFoodContainer}>
+                    <Text style={styles.modalFoodLabel}>In the picture</Text>
+                    <Text style={styles.modalFoodName}>{foodName}</Text>
+                  </View>
+                )}
+
               </Pressable>
             </View>
           </Pressable>
@@ -101,13 +126,20 @@ const styles = StyleSheet.create({
     borderRadius: 10
   },
   textContainer: {
-    height: 40,
+    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'flex-start',
+    paddingRight: 15,
   },
   text: {
     fontWeight: "bold",
     fontSize: 15,
+  },
+  textHebrew: {
+    fontSize: 12,
+    color: '#D4A017',
+    writingDirection: 'rtl',
+    marginTop: 2,
   },
   modalOverlay: {
     flex: 1,
@@ -154,9 +186,36 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textAlign: 'center',
   },
+  modalTitleHebrew: {
+    fontSize: 18,
+    color: '#D4A017',
+    textAlign: 'center',
+    writingDirection: 'rtl',
+    marginTop: -2,
+  },
   modalBracha: {
     fontSize: 18,
     color: '#666',
+    textAlign: 'center',
+  },
+  modalFoodContainer: {
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#EEE',
+    paddingTop: 16,
+    width: '100%',
+  },
+  modalFoodLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#999',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  modalFoodName: {
+    fontSize: 16,
+    color: '#444',
     textAlign: 'center',
   },
   closeButton: {

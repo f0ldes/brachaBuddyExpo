@@ -6,7 +6,9 @@
 
 interface HistoryItem {
     id: string | number;
-    text: string;
+    bracha: string;
+    brachaHebrew: string;
+    foodName: string;
     img: any;
     timestamp?: string;
     description?: string;
@@ -98,9 +100,12 @@ const transformLogsIntoHistoryItems = (logs : LogItem[] ): HistoryItem[] => {
                   .join(', ')
             : parsedContent?.brachaEnglish || parsedContent?.bracha || '';
 
-        const text = foodText
-            ? `${foodText}${brachaDisplay ? ` - ${brachaDisplay}` : ''}`
-            : 'Unknown Item';
+        const brachaHebrew = parsedContent?.blessings?.length
+            ? parsedContent.blessings
+                  .map(b => b.brachaHebrew)
+                  .filter(Boolean)
+                  .join(', ')
+            : parsedContent?.brachaHebrew || '';
 
         const description = parsedContent?.blessings?.length
             ? parsedContent.blessings
@@ -111,7 +116,9 @@ const transformLogsIntoHistoryItems = (logs : LogItem[] ): HistoryItem[] => {
 
         return {
             id: log.id || Math.random().toString(36).substring(2, 9),
-            text: text,
+            bracha: brachaDisplay,
+            brachaHebrew: brachaHebrew,
+            foodName: foodText,
             img: log.imageUrl,
             description: description
         }
