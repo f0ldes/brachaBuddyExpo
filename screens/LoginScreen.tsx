@@ -14,10 +14,8 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import {
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   GoogleAuthProvider,
   OAuthProvider,
-  signInWithCredential,
 } from 'firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -25,6 +23,10 @@ import * as Crypto from 'expo-crypto';
 import { auth } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { authenticatedFetch } from '../utils/apiClient';
+import {
+  upgradeOrCreateEmail,
+  upgradeOrSignInWithCredential,
+} from '../utils/authLink';
 
 // TODO: Replace with your actual Web client ID from Firebase Console > Auth > Google provider
 GoogleSignin.configure({
@@ -40,12 +42,14 @@ export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Track if user was a guest when they entered this screen
-  const wasGuest = useRef(!user);
+  // Track if the user was an anonymous guest when they entered this screen.
+  // (Guests are always signed in anonymously now, so check isAnonymous rather
+  // than the presence of a user.)
+  const wasGuest = useRef(user?.isAnonymous ?? true);
 
   useEffect(() => {
-    // Auto-navigate back when a guest successfully authenticates
-    if (user && wasGuest.current) {
+    // Auto-navigate back when a guest upgrades to a real account.
+    if (user && !user.isAnonymous && wasGuest.current) {
       navigation.goBack();
     }
   }, [user]);
@@ -58,7 +62,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password);
+        // Upgrade the anonymous guest in place so credits/history carry over.
+        await upgradeOrCreateEmail(email, password);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -78,7 +83,7 @@ export default function LoginScreen() {
       if (!idToken) throw new Error('No ID token from Google');
 
       const credential = GoogleAuthProvider.credential(idToken);
-      await signInWithCredential(auth, credential);
+      await upgradeOrSignInWithCredential(credential);
     } catch (error: any) {
       if (error.code !== 'SIGN_IN_CANCELLED') {
         Alert.alert('Google Sign-In Error', error.message);
@@ -113,7 +118,7 @@ export default function LoginScreen() {
         idToken: identityToken,
         rawNonce: nonce,
       });
-      await signInWithCredential(auth, credential);
+      await upgradeOrSignInWithCredential(credential);
     } catch (error: any) {
       if (error.code !== 'ERR_REQUEST_CANCELED') {
         Alert.alert('Apple Sign-In Error', error.message);
@@ -157,8 +162,9 @@ export default function LoginScreen() {
     );
   };
 
-  // Authenticated user view — account management
-  if (user) {
+  // Authenticated user view — account management. Anonymous guests fall
+  // through to the login form below.
+  if (user && !user.isAnonymous) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.closeButton}>

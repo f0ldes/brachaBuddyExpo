@@ -27,11 +27,15 @@ import {
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Pulse } from 'react-native-animated-spinkit';
 import transformLogsIntoHistoryItems from '../utils/transformLogHistoryItems';
-import { authenticatedFetch } from '../utils/apiClient';
+import { authenticatedFetch, parseNoCredits } from '../utils/apiClient';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
+import { useCredits } from '../contexts/CreditsContext';
+import OutOfCreditsModal from '../components/OutOfCreditsModal';
+import { showRewardedAd } from '../utils/rewardedAd';
+import { purchaseProductById, PRODUCT_IDS } from '../utils/purchases';
 
 if (__DEV__) {
   const originalFetch = globalThis.fetch;
@@ -126,10 +130,92 @@ export interface LogEntry {
 
 export default function HomeScreen() {
   const { user, isGuest } = useAuth();
+  const { credits, lifetime, refresh: refreshCredits } = useCredits();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const [showTutorial, setShowTutorial] = useState(false);
   const tutorialFadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Out-of-credits sheet (opened when a scan returns HTTP 402).
+  const [outOfCreditsVisible, setOutOfCreditsVisible] = useState(false);
+  const [outOfCreditsBusy, setOutOfCreditsBusy] = useState(false);
+
+  // Shows a rewarded ad; the credit is granted server-side via AdMob SSV, so
+  // after the ad we poll the backend a couple times for the balance to update.
+  const handleWatchAd = async () => {
+    if (!user?.uid) return;
+    setOutOfCreditsBusy(true);
+    try {
+      const { earned } = await showRewardedAd(user.uid);
+      if (!earned) return; // user closed early — no reward
+      // SSV is asynchronous; give it a moment, then refresh (retry once).
+      await new Promise((r) => setTimeout(r, 1500));
+      await refreshCredits();
+      await new Promise((r) => setTimeout(r, 1500));
+      await refreshCredits();
+      setOutOfCreditsVisible(false);
+    } catch (e) {
+      console.warn('Rewarded ad error', e);
+      Alert.alert(
+        'No ad available',
+        'No ad was ready just now. Please try again in a moment.',
+      );
+    } finally {
+      setOutOfCreditsBusy(false);
+    }
+  };
+
+  // Lifetime unlock via RevenueCat. The webhook grants the entitlement
+  // server-side, so we refresh from the backend after a successful purchase.
+  const handleGoLifetime = async () => {
+    setOutOfCreditsBusy(true);
+    try {
+      const { success, cancelled } = await purchaseProductById(
+        PRODUCT_IDS.lifetime,
+      );
+      if (cancelled) return;
+      if (success) {
+        await new Promise((r) => setTimeout(r, 1500));
+        await refreshCredits();
+        await new Promise((r) => setTimeout(r, 1500));
+        await refreshCredits();
+        setOutOfCreditsVisible(false);
+        Alert.alert('Thank you! 🎉', 'You now have unlimited scans.');
+      }
+    } catch (e) {
+      console.warn('Lifetime purchase error', e);
+      Alert.alert(
+        'Purchase failed',
+        'Something went wrong. If you were charged, your unlock will appear shortly.',
+      );
+    } finally {
+      setOutOfCreditsBusy(false);
+    }
+  };
+
+  // Tips are pure goodwill — no entitlement granted, so no refresh needed.
+  const buyTip = async (productId: string) => {
+    setOutOfCreditsBusy(true);
+    try {
+      const { success } = await purchaseProductById(productId);
+      if (success) {
+        Alert.alert('Thank you! 💛', 'Your support keeps BrachaBuddy running.');
+      }
+    } catch (e) {
+      console.warn('Tip purchase error', e);
+      Alert.alert('Purchase failed', 'Something went wrong. You were not charged.');
+    } finally {
+      setOutOfCreditsBusy(false);
+    }
+  };
+
+  const handleSupport = () => {
+    Alert.alert('Support the app', 'Your tip helps keep BrachaBuddy running 💛', [
+      { text: 'Small tip', onPress: () => buyTip(PRODUCT_IDS.tipSmall) },
+      { text: 'Large tip', onPress: () => buyTip(PRODUCT_IDS.tipLarge) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
   // Welcome modal — shown once per user. Bump the version suffix to re-show it
   // to everyone (including returning users) after a meaningful update.
@@ -370,6 +456,15 @@ export default function HomeScreen() {
             console.log('📥 API response data:', JSON.stringify(res, null, 2));
             setApiMessage(res);
             fetchHistoryItems();
+            // Reflect the credit just spent in the UI.
+            refreshCredits();
+          } else if (response.status === 402) {
+            // Out of credits — surface the opt-in refill sheet instead of an
+            // error, and sync the badge to the balance the server reported.
+            const body = await parseNoCredits(response);
+            console.log('💳 Out of credits:', body);
+            refreshCredits();
+            setOutOfCreditsVisible(true);
           } else {
             const errorText = await response.text();
             console.error(
@@ -527,6 +622,20 @@ export default function HomeScreen() {
           </Animated.View>
         )}
       </View>
+
+      {/* Credit balance pill — tap to open the refill sheet. Hidden for
+          lifetime users (unlimited). */}
+      {!lifetime && (
+        <TouchableOpacity
+          style={styles.creditPill}
+          onPress={() => setOutOfCreditsVisible(true)}
+          activeOpacity={0.7}>
+          <Ionicons name="sparkles-outline" size={16} color="#D4A017" />
+          <Text style={styles.creditPillText}>
+            {credits} scan{credits === 1 ? '' : 's'} left
+          </Text>
+        </TouchableOpacity>
+      )}
 
       <ScrollView
         refreshControl={
@@ -821,6 +930,16 @@ export default function HomeScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <OutOfCreditsModal
+        visible={outOfCreditsVisible}
+        credits={credits}
+        busy={outOfCreditsBusy}
+        onClose={() => setOutOfCreditsVisible(false)}
+        onWatchAd={handleWatchAd}
+        onGoLifetime={handleGoLifetime}
+        onSupport={handleSupport}
+      />
     </SafeAreaView>
   );
 }
@@ -834,6 +953,24 @@ const styles = StyleSheet.create({
     paddingLeft: 20,
     paddingRight: 20,
     //margin: 10,
+  },
+  creditPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E0D5B5',
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    marginTop: -8,
+  },
+  creditPillText: {
+    color: '#373329',
+    fontSize: 14,
+    fontFamily: 'ShipporiMincho-Medium',
   },
   logoContainer: {
     flexDirection: 'row',

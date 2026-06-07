@@ -1,20 +1,34 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import mobileAds from 'react-native-google-mobile-ads';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { CreditsProvider } from './contexts/CreditsContext';
+import { initPurchases } from './utils/purchases';
 import HomeScreen from './screens/HomeScreen';
 import LoginScreen from './screens/LoginScreen';
 
 SplashScreen.preventAutoHideAsync();
 
+// Initialize the Google Mobile Ads SDK once at startup.
+mobileAds()
+  .initialize()
+  .catch((e) => console.warn('Mobile Ads init failed', e));
+
 const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
-  const { loading } = useAuth();
+  const { user, loading } = useAuth();
+
+  // Point RevenueCat at the Firebase uid so IAP webhooks grant to the right
+  // user. The anon→real upgrade preserves the uid, so this stays stable.
+  useEffect(() => {
+    if (user?.uid) initPurchases(user.uid);
+  }, [user?.uid]);
 
   if (loading) {
     return (
@@ -57,7 +71,9 @@ export default function App() {
     <SafeAreaProvider>
       <View style={styles.containerStyle} onLayout={onLayoutRootView}>
         <AuthProvider>
-          <AppNavigator />
+          <CreditsProvider>
+            <AppNavigator />
+          </CreditsProvider>
         </AuthProvider>
       </View>
     </SafeAreaProvider>

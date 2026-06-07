@@ -1,10 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signOut as firebaseSignOut } from 'firebase/auth';
+import {
+  onAuthStateChanged,
+  User,
+  signOut as firebaseSignOut,
+  signInAnonymously,
+} from 'firebase/auth';
 import { auth } from '../config/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface AuthContextType {
+  /** The Firebase user. After launch this is ALWAYS set — guests are signed
+   *  in anonymously, so `user` is only null during the brief boot window. */
   user: User | null;
+  /** True when the current user is an anonymous guest (not a real account). */
   isGuest: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
@@ -28,25 +36,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // Check if session has expired (3 months)
-        const loginTimestamp = await AsyncStorage.getItem('loginTimestamp');
-        if (loginTimestamp && Date.now() - parseInt(loginTimestamp, 10) > SESSION_MAX_AGE_MS) {
-          await firebaseSignOut(auth);
-          await AsyncStorage.removeItem('loginTimestamp');
+      // No user at all → create an anonymous guest so every user has a uid +
+      // token. The credit system relies on this: a tokenless request hits the
+      // backend's legacy ungated path and can't be limited. onAuthStateChanged
+      // fires again with the new anonymous user.
+      if (!firebaseUser) {
+        try {
+          await signInAnonymously(auth);
+        } catch (e) {
+          console.error('Anonymous sign-in failed', e);
           setUser(null);
           setIsGuest(true);
-        } else {
-          if (!loginTimestamp) {
-            await AsyncStorage.setItem('loginTimestamp', Date.now().toString());
-          }
-          setUser(firebaseUser);
-          setIsGuest(false);
+          setLoading(false);
         }
-      } else {
-        setUser(null);
-        setIsGuest(true);
+        return;
       }
+
+      // Session expiry only applies to real accounts; anonymous guests persist.
+      if (!firebaseUser.isAnonymous) {
+        const loginTimestamp = await AsyncStorage.getItem('loginTimestamp');
+        if (
+          loginTimestamp &&
+          Date.now() - parseInt(loginTimestamp, 10) > SESSION_MAX_AGE_MS
+        ) {
+          await firebaseSignOut(auth);
+          await AsyncStorage.removeItem('loginTimestamp');
+          return; // fires again → null → anonymous guest
+        }
+        if (!loginTimestamp) {
+          await AsyncStorage.setItem('loginTimestamp', Date.now().toString());
+        }
+      }
+
+      setUser(firebaseUser);
+      setIsGuest(firebaseUser.isAnonymous);
       setLoading(false);
     });
     return unsubscribe;
@@ -54,10 +77,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await AsyncStorage.removeItem('loginTimestamp');
-    setIsGuest(false);
+    // Signing out drops back to a fresh anonymous guest (onAuthStateChanged
+    // fires null → signInAnonymously).
     await firebaseSignOut(auth);
   };
 
+  // Retained for backward compatibility; guests are now created automatically.
   const continueAsGuest = () => {
     setIsGuest(true);
   };

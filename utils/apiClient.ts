@@ -24,3 +24,43 @@ export async function authenticatedFetch(
     headers,
   });
 }
+
+export interface CreditsInfo {
+  credits: number;
+  lifetime: boolean;
+  isAnonymous: boolean;
+}
+
+/** Fetches the current user's credit balance from the backend. */
+export async function getCredits(): Promise<CreditsInfo> {
+  const response = await authenticatedFetch('/credits', { method: 'GET' });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch credits: ${response.status}`);
+  }
+  return response.json();
+}
+
+/** Shape of the backend's HTTP 402 "out of credits" body. */
+export interface NoCreditsBody {
+  reason: 'NO_CREDITS';
+  credits: number;
+  canWatchAd: boolean;
+  message?: string;
+}
+
+/**
+ * Parses a 402 response body, tolerating non-JSON. Returns null when the
+ * response isn't a recognizable out-of-credits payload.
+ */
+export async function parseNoCredits(
+  response: Response,
+): Promise<NoCreditsBody | null> {
+  if (response.status !== 402) return null;
+  try {
+    const body = await response.clone().json();
+    if (body?.reason === 'NO_CREDITS') return body as NoCreditsBody;
+  } catch {
+    // fall through
+  }
+  return { reason: 'NO_CREDITS', credits: 0, canWatchAd: true };
+}
