@@ -43,6 +43,17 @@
           "iosAppId": "ca-app-pub-6491535003946944~4237295920",
           "androidAppId": "ca-app-pub-6491535003946944~4237295920"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "extraPods": [
+              { "name": "GoogleUtilities", "modular_headers": true },
+              { "name": "RecaptchaInterop", "modular_headers": true }
+            ]
+          }
+        }
       ]
     ],
     "extra": {
