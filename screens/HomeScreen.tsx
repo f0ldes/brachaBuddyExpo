@@ -148,11 +148,13 @@ export default function HomeScreen() {
     try {
       const { earned } = await showRewardedAd(user.uid);
       if (!earned) return; // user closed early — no reward
-      // SSV is asynchronous; give it a moment, then refresh (retry once).
-      await new Promise((r) => setTimeout(r, 1500));
-      await refreshCredits();
-      await new Promise((r) => setTimeout(r, 1500));
-      await refreshCredits();
+      // SSV (AdMob → /ads/ssv → grantAdCredit) is asynchronous and can take a
+      // few seconds; poll the backend a few times so the pill updates once the
+      // credit is granted.
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        await refreshCredits();
+      }
       setOutOfCreditsVisible(false);
     } catch (e) {
       console.warn('Rewarded ad error', e);
@@ -461,8 +463,16 @@ export default function HomeScreen() {
           } else if (response.status === 402) {
             // Out of credits — surface the opt-in refill sheet instead of an
             // error, and sync the badge to the balance the server reported.
+            // Clear any previous result first so we don't leave the last
+            // scan's blessing on screen behind the sheet (the scan that just
+            // failed produced no new blessing).
             const body = await parseNoCredits(response);
             console.log('💳 Out of credits:', body);
+            setApiMessage('');
+            setCapturedPhoto(null);
+            fadeAnim.setValue(0);
+            slideAnim.setValue(-100);
+            borderAnim.setValue(0);
             refreshCredits();
             setOutOfCreditsVisible(true);
           } else {
@@ -680,6 +690,12 @@ export default function HomeScreen() {
                       const content = JSON.parse(
                         apiMessage.description.message.content,
                       );
+                      // Non-food: the playful remark is shown below as the
+                      // body, so keep the title a neutral indicator instead
+                      // of repeating that same sentence twice.
+                      if (content.isFood === false) {
+                        return 'Not a food item 🌿';
+                      }
                       return (
                         (content.recognizedFoods?.length
                           ? content.recognizedFoods.join(', ')

@@ -2,13 +2,15 @@ import {
   AdEventType,
   RewardedAd,
   RewardedAdEventType,
-  TestIds,
 } from 'react-native-google-mobile-ads';
 
-// Real rewarded unit (production). In dev we use Google's test unit so we
-// never click live ads (which can get the AdMob account flagged).
-const REWARDED_UNIT_ID = 'ca-app-pub-6491535003946944/4045724232';
-const adUnitId = __DEV__ ? TestIds.REWARDED : REWARDED_UNIT_ID;
+// Always use OUR rewarded unit — server-side verification (SSV) is configured
+// per ad unit, so Google's generic TestIds demo unit would never call our
+// /ads/ssv endpoint. Simulators/emulators are automatically registered as test
+// devices by the SDK, so this still serves (non-billable) TEST ads in dev while
+// firing the real SSV callback. For physical dev devices, register them as test
+// devices in AdMob to avoid serving live ads.
+const adUnitId = 'ca-app-pub-6491535003946944/4045724232';
 
 export interface RewardedResult {
   /** True when the user watched long enough to earn the reward. */
@@ -50,6 +52,7 @@ export function showRewardedAd(userId: string): Promise<RewardedResult> {
       RewardedAdEventType.LOADED,
       () => {
         rewarded.show().catch((e) => {
+          console.warn('Rewarded ad show() failed', e);
           if (settled) return;
           settled = true;
           cleanup();
@@ -73,6 +76,7 @@ export function showRewardedAd(userId: string): Promise<RewardedResult> {
     });
 
     const unsubError = rewarded.addAdEventListener(AdEventType.ERROR, (error) => {
+      console.warn('Rewarded ad ERROR', error);
       if (settled) return;
       settled = true;
       cleanup();
